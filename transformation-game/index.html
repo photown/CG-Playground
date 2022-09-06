@@ -87,6 +87,12 @@
                 background-origin: content-box;
                 padding: 5px;
             }
+
+            .teapot {
+                max-width: 25px;
+                max-height: 25px;
+                vertical-align: middle;
+            }
         </style>
 
         <style>
@@ -128,14 +134,14 @@
                       <option value="medium">Medium</option>
                       <option value="hard">Hard</option>
                     </select>
-                     <button type="button" id="show-hint" class="tooltip" style="border: none; width: 25px; height: 25px;background:url(icons/lightbulb.svg)"><span id="hint-text" class="tooltiptext"></span></button>
+                     <button type="button" id="show-hint" class="tooltip" style="vertical-align: bottom; border: none; width: 25px; height: 25px;background:url(icons/lightbulb.svg)"><span id="hint-text" class="tooltiptext"></span></button>
                     <br>
                     <div style="margin-top:10px">
                         <button type="button" id="new-level-button">New level</button>
                         <button type="button" id="reset-button">Reset</button>
                     </div>
                     <input type="checkbox" id="enablePreview" name="enablePreview" checked>
-                    <label for="enablePreview">Preview individual transformations</label><br>
+                    <label for="enablePreview">Preview individual transformations <img src="icons/teapot-ghost.png" class="teapot" /></label><br>
                 </div>
                 <div style="display: flex; flex-direction: row; height: 0px; flex-grow: 1">
                     <div id="remaining" class="draggable"></div>
@@ -148,7 +154,7 @@
         </div>
         <div style="padding: 15px">
             <br/><b>How to play:</b>
-            <br/>The end goal is to match the teapot with the outline using matrix transformations.
+            <br/>The end goal is to match the teapot <img src="icons/teapot-main.png" class="teapot" /> with the outline <img src="icons/teapot-outline.png" class="teapot" /> using matrix transformations.
             <br/>Drag and rearrange transformations from the panel on the left to the panel on the right. 
             <br/>After selecting a transformation, drag mouse on the canvas to change the transformation value.
             <br/>Note that selecting a transformation also shows a preview of the individual transformation.
@@ -378,7 +384,9 @@
                 const result = generateTargetMatrix(numTransformations);
                 targetMatrix.copy(result.targetMatrix);
                 if (teapotShadow) {
-                    teapotShadow.matrix.copy(targetMatrix);
+                    teapotShadow.matrix.copy(targetMatrix)
+                    teapotShadow.matrix.decompose(decomposeTemp.position, decomposeTemp.quaternion, decomposeTemp.scale)
+                    teapotShadow.matrix.setPosition(decomposeTemp.position.x, decomposeTemp.position.y, 100); 
                 }
                 console.log("used transformations = " + result.usedTransformations)
 
@@ -665,7 +673,9 @@
                     teapot.matrix.premultiply(transformations[i].matrix)
                 }
                 if (transformIndex >= 0) {
-                    teapotIndividualTransform.matrix.copy(transformations[transformIndex].matrix)
+                    teapotIndividualTransform.matrix.copy(transformations[transformIndex].matrix);
+                    teapotIndividualTransform.matrix.decompose(decomposeTemp.position, decomposeTemp.quaternion, decomposeTemp.scale)
+                    teapotIndividualTransform.matrix.setPosition(decomposeTemp.position.x, decomposeTemp.position.y, -100);
                 }
 
                 if (isMatching()) {
@@ -735,8 +745,8 @@
                             // Here the loaded data is assumed to be an object
                             function ( obj ) {
                                 // Add the loaded object to the scene
-                                 const material = new THREE.MeshBasicMaterial( { color: 0x808080 } );
-                                material.opacity = 0.25;
+                                const material = new THREE.MeshBasicMaterial( { color: 0xBF40BF } );
+                                material.opacity = 0.45;
                                 material.transparent = true;
                                 obj.position.y -= 40;
                                 const scale = 25;
@@ -750,11 +760,14 @@
                                 setTeapotColor(TEAPOT_DEFAULT_COLOR);
 
                                 teapotShadow = teapot.clone();
-                              //  teapotShadow.matrixAutoUpdate = false;
-                                //teapotShadow.position.x = 25;
-                                //teapotShadow.position.y = 125;
+
                                 console.log("teapotShadow.matrix before = " + JSON.stringify(teapotShadow.matrix))
                                 teapotShadow.matrix.copy(targetMatrix)
+                                teapotShadow.matrix.decompose(decomposeTemp.position, decomposeTemp.quaternion, decomposeTemp.scale)
+                                teapotShadow.matrix.setPosition(decomposeTemp.position.x, decomposeTemp.position.y, 100); 
+
+                                
+
 
                                 console.log("teapotShadow.matrix after " + JSON.stringify(teapotShadow.matrix))
                                 
@@ -768,8 +781,18 @@
                                 } );
 
 
+                                const previewMaterial = new THREE.MeshBasicMaterial( { color: 0xFFFFFF } );
+                                previewMaterial.opacity = 0.25;
+                                previewMaterial.transparent = true;
+                                
                                 teapotIndividualTransform = teapot.clone();
                                 teapotIndividualTransform.name = "teapotIndividualTransform"
+                                teapotIndividualTransform.traverse( function( child ) {
+
+                                    if ( child instanceof THREE.Mesh ) {
+                                        child.material = previewMaterial;
+                                    }
+                                } );
 
                                 scene.add(teapotShadow);
 
@@ -979,8 +1002,7 @@
                     srcParent.insertBefore(srcParent.children[newIndex], srcParent.children[oldIndex])
                 } else if (ev.target.parentNode.id == "controls") {
                     const srcParent = document.getElementById("controls");                
-                   // const oldIndex = parseInt(getChildIndex(srcParent, ev.target)); // there used to be a -1 here...
-                   const preview = document.querySelector('.preview');
+                    const preview = document.querySelector('.preview');
                     const oldIndex = getChildIndex(srcParent, preview);
                     console.log("dropping oldIndex = " + oldIndex)
 
