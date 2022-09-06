@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>My first three.js app</title>
+        <style>
+            body { margin: 0; }
+        </style>
+    </head>
+    <body>
+        <style>
+            .draggable {
+
+            }
+
+            .container {
+              display: flex;
+              width:  150px;
+              flex-direction: column
+            }
+
+            #remaining {
+                background-color: #525252;
+                display: block;
+                width: 41px;
+                padding: 10px;
+            }
+
+            #remaining .box {
+              border: 3px solid #ffffff;
+              background-color: #ddd;
+              border-radius: .5em;
+            #  padding: 10px;
+              cursor: grab;
+             # padding:  10px;
+            }
+
+            .box {
+              border: 3px solid #666;
+              background-color: #ddd;
+              border-radius: .5em;
+              padding: 10px;
+              cursor: grab;
+             # padding:  10px;
+            }
+
+            .box.selected {
+              border: 3px solid red;
+            }
+
+            .preview {
+              border: 3px dashed orange;
+              border-radius: .5em;
+              padding: 10px;
+              #margin:  10px;
+            }
+
+            .translate {
+                background-image: url(icons/translate.svg);
+                background-size: 25px;
+                background-repeat: no-repeat;
+                width: 25px;
+                height: 25px;
+                margin-bottom: 5px;
+                background-origin: content-box;
+                padding: 5px;
+            }
+
+            .rotate {
+                background-image: url(icons/rotate.svg);
+                background-size: 25px;
+                background-repeat: no-repeat;
+                width: 25px;
+                height: 25px;
+                margin-bottom: 5px;
+                background-origin: content-box;
+                padding: 5px;
+            }
+
+            .scale {
+                background-image: url(icons/scale.svg);
+                background-size: 25px;
+                background-repeat: no-repeat;
+                width: 25px;
+                height: 25px;
+                margin-bottom: 5px;
+                background-origin: content-box;
+                padding: 5px;
+            }
+        </style>
+
+        <style>
+        .tooltip {
+          position: relative;
+          display: inline-block;
+          border-bottom: 1px dotted black;
+        }
+
+        .tooltip .tooltiptext {
+          visibility: hidden;
+          width: 350px;
+          background-color: #555;
+          color: #fff;
+          text-align: center;
+          border-radius: 6px;
+          padding: 5px 0;
+          position: absolute;
+          z-index: 1;
+          top: 100%;
+          left: 50%;
+          margin-left: -60px;
+          opacity: 0;
+          transition: opacity 0.3s;
+        }
+
+        .tooltip:hover .tooltiptext {
+          visibility: visible;
+          opacity: 1;
+        }
+        </style>
+        
+        <div style="display: flex; flex-direction: row">
+            <div style="display: flex; flex-direction: column">
+                <div style="width: 180px; padding: 10px">
+                    <label for="difficulty">Difficulty:</label>
+                    <select name="difficulty" id="difficulty">
+                      <option value="easy">Easy</option>
+                      <option value="medium">Medium</option>
+                      <option value="hard">Hard</option>
+                    </select>
+                     <button type="button" id="show-hint" class="tooltip" style="border: none; width: 25px; height: 25px;background:url(icons/lightbulb.svg)"><span id="hint-text" class="tooltiptext"></span></button>
+                    <br>
+                    <div style="margin-top:10px">
+                        <button type="button" id="new-level-button">New level</button>
+                        <button type="button" id="reset-button">Reset</button>
+                    </div>
+                    <input type="checkbox" id="enablePreview" name="enablePreview" checked>
+                    <label for="enablePreview">Preview individual transformations</label><br>
+                </div>
+                <div style="display: flex; flex-direction: row; height: 0px; flex-grow: 1">
+                    <div id="remaining" class="draggable"></div>
+                    <div id="controls" class="container draggable">
+                        <div id="inv" style="height:0px;flex-grow: 1;"></div>
+                    </div>
+                </div>
+            </div>
+            <canvas id="canvas" style="width:0px;flex-grow: 1;" ></canvas>
+        </div>
+        <div style="padding: 15px">
+            <br/><b>How to play:</b>
+            <br/>The end goal is to match the teapot with the outline using matrix transformations.
+            <br/>Drag and rearrange transformations from the panel on the left to the panel on the right. 
+            <br/>After selecting a transformation, drag mouse on the canvas to change the transformation value.
+            <br/>Note that selecting a transformation also shows a preview of the individual transformation.
+        </div>
+        <script async src="https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js"></script>
+        <script type="importmap">
+          {
+            "imports": {
+              "three": "https://unpkg.com/three@0.143.0/build/three.module.js",
+              "three/OBJLoader": "https://unpkg.com/three@0.143.0/examples/jsm/loaders/OBJLoader.js",
+              "three/MTLLoader": "https://unpkg.com/three@0.129.0/examples/jsm/loaders/MTLLoader.js"
+            }
+          }
+        </script>
+        
+        <script type="module">
+            import * as THREE from 'three';
+            import { OBJLoader } from 'three/OBJLoader';
+            import { MTLLoader } from 'three/MTLLoader'
+
+
+            var matrices = [];
+            const scene = new THREE.Scene();
+            //const camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 1, 2000 );
+            const camera = new THREE.OrthographicCamera( window.innerWidth / -2, window.innerWidth / 2, window.innerHeight / 2, window.innerHeight / -2, 1, 2000 );
+
+            const tempMatrix = new THREE.Matrix4();
+            const targetMatrix = new THREE.Matrix4;
+            const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById("canvas") });
+            
+            const tempArray = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+
+            const TRANSFORM_TYPE_NONE = 0;
+            const TRANSFORM_TYPE_TRANSLATE = 1;
+            const TRANSFORM_TYPE_ROTATE = 2;
+            const TRANSFORM_TYPE_SCALE = 3;
+
+            const TRANSFORM_AXIS_X = 1;
+            const TRANSFORM_AXIS_Y = 2;
+            const TRANSFORM_AXIS_Z = 3;
+
+            const TEAPOT_DEFAULT_COLOR = 0xFFFFFF;
+
+            var transformType = TRANSFORM_TYPE_NONE;
+            var transformAxis;
+            var transformIndex = -1;
+
+            var teapot;
+            var teapotShadow;
+            var teapotIndividualTransform;
+            var startPos;
+            var enablePreview;
+
+            var transformations = [];
+            const audio = new Audio('sound/success.mp3');
+
+            const decomposeTemp = {position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), scale: new THREE.Vector3()}
+            const decomposeTemp2 = {position: new THREE.Vector3(), quaternion: new THREE.Quaternion(), scale: new THREE.Vector3()}
+            const eulerTemp = new THREE.Euler();
+
+            var cachedUsedTransformations;
+            var cachedHints;
+
+            renderer.setSize( window.innerWidth, window.innerHeight, false );
+            setupGrid(/* step= */ 75, /* backgroundColor= */ 0x525252, /* lineColor= */ 0x5c5c5c, renderer, scene);
+            setupXAxis(/* lineColor= */ 0xff0000, renderer, scene);
+            setupYAxis(/* lineColor= */ 0x00ff00, renderer, scene);
+
+           var ambient = new THREE.AmbientLight( 0x101030 );
+                scene.add( ambient );
+
+                var directionalLight = new THREE.DirectionalLight( 0xffeedd );
+                directionalLight.position.set( 0, 0, 1 ).normalize();
+                scene.add( directionalLight );
+
+            camera.position.z = 255;
+
+
+
+            startLevel();
+
+            
+            loadModel();
+
+
+            document.addEventListener('move_item', (e) => { 
+                console.log("move_item detected " + JSON.stringify(e.detail)) 
+                var el = transformations[e.detail.oldIndex];
+                transformations.splice(e.detail.oldIndex, 1);
+                transformations.splice(e.detail.newIndex, 0, el);
+                console.log("transformIndex before " + transformIndex)
+                if (transformIndex != -1) {
+                    if (transformIndex == e.detail.oldIndex) {
+                        transformIndex = e.detail.newIndex;
+                    } else {
+                        if (transformIndex > e.detail.oldIndex) {
+                            transformIndex--;
+                        }
+                        if (transformIndex >= e.detail.newIndex) {
+                            transformIndex++;
+                        }
+                    }
+                }
+                console.log("transformIndex after " + transformIndex)
+
+                console.log("transformations array = " + JSON.stringify(transformations))
+                updateTransformations();
+            }, false);
+
+            document.addEventListener('insert_item', (e) => { 
+                console.log("insert_item detected " + JSON.stringify(e.detail)) 
+                transformations.splice(e.detail.index, 0, {
+                    transformType: e.detail.transformType,
+                    matrix: new THREE.Matrix4()
+                })
+                console.log("transformations array = " + JSON.stringify(transformations))
+            }, false);
+
+            document.addEventListener('select_item', (e) => { 
+                console.log("select_item detected " + JSON.stringify(e.detail)) 
+                transformIndex = e.detail.index;
+                var transform = transformations[e.detail.index];
+                switch (transform.transformType) {
+                    case "translate":
+                        transformType = TRANSFORM_TYPE_TRANSLATE;
+                        if (transform.transformAxis == "x") {
+                            transformAxis = TRANSFORM_AXIS_X;
+                        } else if (transform.transformAxis == "y") {
+                            transformAxis = TRANSFORM_AXIS_Y;
+                        } else {
+                            transformAxis = -1;
+                        }
+                        break;
+                    case "rotate":
+                        transformType = TRANSFORM_TYPE_ROTATE;
+                        transformAxis = TRANSFORM_AXIS_Z;
+                        break;
+                    case "scale":
+                        transformType = TRANSFORM_TYPE_SCALE;
+                        if (transform.transformAxis == "x") {
+                            transformAxis = TRANSFORM_AXIS_X;
+                        } else if (transform.transformAxis == "y") {
+                            transformAxis = TRANSFORM_AXIS_Y;
+                        } else {
+                            transformAxis = -1;
+                        }
+                        break;
+                }
+                if (!scene.getObjectByName("teapotIndividualTransform")
+                    && enablePreview) {
+                    scene.add(teapotIndividualTransform)
+                }
+                updateTransformations();
+                console.log("transformations array = " + JSON.stringify(transformations))
+            }, false);
+
+            document.addEventListener('select_axis', (e) => { 
+                console.log("select_axis detected " + JSON.stringify(e.detail)) 
+                var transform = transformations[e.detail.index];
+                transform.matrix.identity();
+                transform.transformAxis = e.detail.axis;
+
+                if (e.detail.index == transformIndex) {
+                    if (transform.transformAxis == "x") {
+                        transformAxis = TRANSFORM_AXIS_X;
+                    } else if (transform.transformAxis == "y") {
+                        transformAxis = TRANSFORM_AXIS_Y;
+                    } else {
+                        transformAxis = -1;
+                    }
+                }
+
+                updateTransformations();
+                updateValueField();
+                console.log("transformations array = " + JSON.stringify(transformations))
+            }, false);
+
+            document.addEventListener('start_level', (e) => { 
+                console.log("start_level detected " + JSON.stringify(e.detail)) 
+                startLevel(e.detail.difficulty)
+            }, false);
+
+            document.addEventListener('reset_level', (e) => { 
+                console.log("reset_level detected " + JSON.stringify(e.detail)) 
+                resetLevel();
+            }, false);
+
+            document.addEventListener('toggle_preview', (e) => {
+                console.log("toggle_preview detected " + JSON.stringify(e.detail))
+                enablePreview = e.detail.enable;
+                if (teapotIndividualTransform && transformIndex != -1) {
+                    if (e.detail.enable) {
+                        scene.add(teapotIndividualTransform);
+                    } else {
+                        scene.remove(teapotIndividualTransform);
+                    }
+                }
+            }, false);
+
+            function startLevel(difficulty) {
+                 renderer.domElement.onmousedown = function(event){
+                    onMouseDown(event)
+                };
+                transformations = [];
+                transformAxis = -1;
+                transformType = TRANSFORM_TYPE_NONE;
+                transformIndex = -1;
+                if (teapot) {
+                    setTeapotColor(TEAPOT_DEFAULT_COLOR);
+                }
+
+                var numTransformations;
+                switch (difficulty) {
+                    case "easy":
+                        numTransformations = Math.ceil(Math.random()*2);
+                        break;
+                    case "medium": 
+                        numTransformations = Math.ceil(Math.random()*2 + 2);
+                        break;
+                    case "hard": 
+                        numTransformations = Math.ceil(Math.random()*2 + 4);
+                        break;
+                }
+                console.log(`num transformations = ${numTransformations}`)
+
+                const result = generateTargetMatrix(numTransformations);
+                targetMatrix.copy(result.targetMatrix);
+                if (teapotShadow) {
+                    teapotShadow.matrix.copy(targetMatrix);
+                }
+                console.log("used transformations = " + result.usedTransformations)
+
+                if (teapotIndividualTransform) {
+                    scene.remove(teapotIndividualTransform)
+                }
+
+                if (teapot) {
+                    updateTransformations();
+                }
+
+                cachedUsedTransformations = result.usedTransformations;
+                cachedHints = result.hints;
+                console.log("hint = " + JSON.stringify(result.hints))
+                const event = new CustomEvent('set_used_transformations', { detail: {usedTransformations: cachedUsedTransformations, hints: cachedHints }});
+                document.dispatchEvent(event);
+            }
+
+            function resetLevel() {
+                renderer.domElement.onmousedown = function(event){
+                    onMouseDown(event)
+                };
+                transformations = [];
+                transformAxis = -1;
+                transformType = TRANSFORM_TYPE_NONE;
+                transformIndex = -1;
+                if (teapot) {
+                    setTeapotColor(TEAPOT_DEFAULT_COLOR);
+                }
+
+                if (teapotIndividualTransform) {
+                    scene.remove(teapotIndividualTransform)
+                }
+
+                if (teapot) {
+                    updateTransformations();
+                }
+
+                const event = new CustomEvent('set_used_transformations', { detail: {usedTransformations: cachedUsedTransformations, hints: cachedHints }});
+                document.dispatchEvent(event);
+            }
+
+            function generateTargetMatrix(numTransformations) {
+                const targetMatrix = new THREE.Matrix4();
+                var availableTransformations = [
+                    ['scale', 'x'], 
+                    ['scale', 'y'], 
+                    ['rotate', 'z'], 
+                    ['translate', 'x'], 
+                    ['translate', 'y']];
+                var usedTransformations = [];
+                var hints = [];
+                for (var i = 0; i < numTransformations; i++) {
+                    var actualAvailableTransformations;
+                    if (i > 0) {
+                        const lastTransformation = [hints[i-1].transformType, hints[i-1].transformAxis];
+                        actualAvailableTransformations = availableTransformations.filter((el) => el[0] != lastTransformation[0] || el[1] != lastTransformation[1])
+                        console.log(`lastTransformation = ${lastTransformation} actualAvailable = ${actualAvailableTransformations}`)
+                    } else {
+                        actualAvailableTransformations = availableTransformations; 
+                    }
+                    const transformationInfo = actualAvailableTransformations[Math.floor(Math.random()*actualAvailableTransformations.length)];
+                    const transformType = transformationInfo[0];
+                    const transformAxis = transformationInfo[1];
+                    var transformValue;
+                    tempMatrix.identity();
+                    if (transformType == 'translate') {
+                        var side = Math.random() > 0.5 ? 1 : -1;
+                        if (transformAxis == 'x') {
+                            transformValue = side * (Math.random() * 200 - 350);
+                        } else if (transformAxis == 'y') {
+                            transformValue = side * (Math.random() * 200 - 350);
+                        }
+                        tempMatrix.makeTranslation(transformAxis == 'x' ? transformValue : 0, transformAxis == 'y' ? transformValue : 0, 0);
+                    } else if (transformType == 'rotate') {
+                        transformValue = Math.random() * 2 * Math.PI - Math.PI;
+                        tempMatrix.makeRotationZ(transformValue);
+                        transformValue *= 180 / Math.PI;
+                    } else if (transformType == 'scale') {
+                        var side = Math.random() > 0.5 ? 1 : -1;
+                        if (transformAxis == 'x') {
+                            transformValue = side * Math.random() * 3 + 0.8;
+                        } else if (transformAxis == 'y') {
+                            transformValue = side * Math.random() * 3 + 0.8;
+                        }
+                        tempMatrix.makeScale(transformAxis == 'x' ? transformValue : 1, transformAxis == 'y' ? transformValue : 1, 1);
+                    }
+                    targetMatrix.premultiply(tempMatrix);
+                    usedTransformations.push(transformType);
+                    hints.push({
+                        transformType: transformType, 
+                        transformAxis: transformAxis,
+                        transformValue: transformValue
+                    });
+                }
+                var numTrapResults = Math.random() * 2;
+                for (var i = 0; i < numTrapResults; i++) {
+                    usedTransformations.push(availableTransformations[Math.floor(Math.random()*availableTransformations.length)][0])
+                }
+                
+                shuffleArray(usedTransformations);
+                return {targetMatrix: targetMatrix, usedTransformations: usedTransformations, hints: hints};
+            }
+
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+            }
+
+            function resizeCanvasToDisplaySize() {
+              const canvas = renderer.domElement;
+              // look up the size the canvas is being displayed
+              const width = canvas.clientWidth;
+              const height = canvas.clientHeight;
+
+              // adjust displayBuffer size to match
+              if (canvas.width !== width || canvas.height !== height) {
+                console.log("adjust!")
+                // you must pass false here or three.js sadly fights the browser
+                renderer.setSize(width, height, false);
+                camera.aspect = width / height;
+                camera.updateProjectionMatrix();
+
+                // update any render target sizes here
+              }
+            }
+
+            function setupXAxis(lineColor, renderer, scene) {
+                const material = new THREE.LineBasicMaterial( { color: lineColor } );
+                const points = [];
+                points.push( new THREE.Vector3( 0, 0, 0 ) );
+                points.push( new THREE.Vector3( window.innerWidth / 2, 0, 0 ) );    
+                const geometry = new THREE.BufferGeometry().setFromPoints( points );
+                const axis = new THREE.Line( geometry, material );
+                scene.add(axis)
+            }
+
+            function setupYAxis(lineColor, renderer, scene) {
+                const material = new THREE.LineBasicMaterial( { color: lineColor } );
+                const points = [];
+                points.push( new THREE.Vector3( 0, 0, 0 ) );
+                points.push( new THREE.Vector3( 0, window.innerHeight / 2, 0 ) );    
+                const geometry = new THREE.BufferGeometry().setFromPoints( points );
+                const axis = new THREE.Line( geometry, material );
+                scene.add(axis)
+            }
+
+            function setupGrid(step, backgroundColor, lineColor, renderer, scene) {
+                renderer.setClearColor(backgroundColor, 1);
+                const material = new THREE.LineBasicMaterial( { color: lineColor } );
+                const endY = window.innerHeight / 2;
+                const startY = Math.floor((-window.innerHeight / 2) / step) * step;
+                const startX = Math.floor((-window.innerWidth / 2) / step) * step;
+                const points = [];
+                for (var i = startX; i < window.innerWidth; i+=2*step) {
+                    points.push( new THREE.Vector3( i, startY, 0 ) );
+                    points.push( new THREE.Vector3( i, endY, 0 ) );    
+                    points.push( new THREE.Vector3( i+step, endY, 0 ) ); 
+                    points.push( new THREE.Vector3( i+step, startY, 0 ) ); 
+                }
+
+                const endX = window.innerWidth / 2;
+                for (var i = startY; i < window.innerHeight; i+=2*step) {
+                    points.push( new THREE.Vector3( startX, i, 0 ) );
+                    points.push( new THREE.Vector3( endX, i, 0 ) );    
+                    points.push( new THREE.Vector3( endX, i+step, 0 ) ); 
+                    points.push( new THREE.Vector3( startX, i+step, 0 ) ); 
+                }
+
+                const geometry = new THREE.BufferGeometry().setFromPoints( points );
+                const grid = new THREE.Line( geometry, material );
+                scene.add(grid)
+            }
+
+            function animate() {
+                requestAnimationFrame( animate );
+
+                resizeCanvasToDisplaySize();
+
+                renderer.render( scene, camera );
+            };
+
+            function onMouseDown(event) {
+                if (!teapot) {
+                    return;
+                }
+                if (transformIndex < 0) {
+                    return;
+                }
+                startPos = {x: event.clientX, y: event.clientY};
+                console.log("onmousedown " + event.clientX + " " + event.clientY)
+                document.body.onmousemove = function(event) { onMouseMove(event) };
+                document.body.onmouseup = function(event){
+                    onMouseUp(event)
+                };
+            }
+
+            function onMouseUp(event) {
+                console.log("onmouseup " + event.clientX + " " + event.clientY)   
+                document.body.onmousemove = null;
+                document.body.onmouseup = null;
+            }
+
+            function onMouseMove(event) {
+                console.log("onmousemove " + event.clientX + " " + event.clientY)   
+                                console.log("teapot position " + teapot.position.x + " " + teapot.position.y)   
+                if (transformType == TRANSFORM_TYPE_TRANSLATE) {
+                    if (transformAxis == TRANSFORM_AXIS_X) {
+                        tempMatrix.identity().makeTranslation((event.clientX - startPos.x), 0, 0)
+                        //tempMatrix.identity().setPosition((event.clientX - startPos.x), 0, 0);
+                    } else if (transformAxis == TRANSFORM_AXIS_Y) {
+                        tempMatrix.identity().makeTranslation(0, -(event.clientY - startPos.y), 0)
+                    } else if (transformAxis == TRANSFORM_AXIS_Z) {
+                        //tempMatrix.identity().setPosition((event.clientX - startPos.x), 0, 0);
+                    }
+                } else if (transformType == TRANSFORM_TYPE_ROTATE) {
+                    if (transformAxis == TRANSFORM_AXIS_X) {
+                        tempMatrix.identity().makeRotationX((event.clientX - startPos.x) * Math.PI / 180);
+                    } else if (transformAxis == TRANSFORM_AXIS_Y) {
+                        tempMatrix.identity().makeRotationY((event.clientX - startPos.x) * Math.PI / 180);
+                    } else if (transformAxis == TRANSFORM_AXIS_Z) {
+                        tempMatrix.identity().makeRotationZ((event.clientX - startPos.x) * Math.PI / 180);
+                    }
+                }  else if (transformType == TRANSFORM_TYPE_SCALE) {
+                    if (transformAxis == TRANSFORM_AXIS_X) {
+                        tempMatrix.identity().makeScale((event.clientX - startPos.x)/10 +1, 1, 1);
+                    } else if (transformAxis == TRANSFORM_AXIS_Y) {
+                        tempMatrix.identity().makeScale(1, (event.clientY - startPos.y)/10 + 1, 1);
+                    } else if (transformAxis == TRANSFORM_AXIS_Z) {
+                         //transform.identity().makeRotationZ(event.clientX - startPos.x);
+                    }
+                }
+
+
+                teapot.matrix.toArray(tempArray);
+                console.log("before transform:\n" + toStringMatrix(tempArray))
+                
+                transformations[transformIndex].matrix.premultiply(tempMatrix);
+
+                if (transformIndex != -1) {
+                    updateValueField()
+                }
+
+                //teapot.matrix.premultiply(tempMatrix)
+                updateTransformations();
+                teapot.matrix.toArray(tempArray);
+                console.log("after transform: \n" + toStringMatrix(tempArray))
+
+                //teapot.position.x += (event.clientX - startPos.x) *1;
+                startPos = {x: event.clientX, y: event.clientY};
+            }
+
+            function updateValueField() {
+                transformations[transformIndex].matrix.decompose(decomposeTemp.position, decomposeTemp.quaternion, decomposeTemp.scale);
+                var newValue;
+                if (transformType == TRANSFORM_TYPE_TRANSLATE) {
+                    if (transformAxis == TRANSFORM_AXIS_X) {
+                        newValue = decomposeTemp.position.x.toFixed(2);
+                    } else if (transformAxis == TRANSFORM_AXIS_Y) {
+                        newValue = decomposeTemp.position.y.toFixed(2);
+                    }
+                } else if (transformType == TRANSFORM_TYPE_ROTATE) {
+                    eulerTemp.setFromQuaternion(decomposeTemp.quaternion);
+                    if (transformAxis == TRANSFORM_AXIS_Z) {
+                        newValue = (eulerTemp.z * 180 / Math.PI).toFixed(2) + '°'
+                    }
+                }  else if (transformType == TRANSFORM_TYPE_SCALE) {
+                    if (transformAxis == TRANSFORM_AXIS_X) {
+                        newValue = decomposeTemp.scale.x.toFixed(2);
+                    } else if (transformAxis == TRANSFORM_AXIS_Y) {
+                        newValue = decomposeTemp.scale.y.toFixed(2);
+                    }
+                }
+                const event = new CustomEvent('new_transformation_value', { detail: {newValue: newValue, index: transformIndex }});
+                document.dispatchEvent(event);
+            }
+
+            function updateTransformations() {
+                teapot.matrix.identity();
+                console.log("transformations lenfgth" + transformations.length)
+                for (var i = 0; i < transformations.length; i++) {
+                    teapot.matrix.premultiply(transformations[i].matrix)
+                }
+                if (transformIndex >= 0) {
+                    teapotIndividualTransform.matrix.copy(transformations[transformIndex].matrix)
+                }
+
+                if (isMatching()) {
+                    console.log("YOU WIN!!!")
+                    setTeapotColor(0x00FF00)
+                    renderer.domElement.onmousedown = null;
+                    document.body.onmousemove = null;
+                    document.body.onmouseup = null;
+                    audio.play();
+                }
+            }
+
+            function setTeapotColor(color) {
+                const material = new THREE.MeshStandardMaterial( { color: color } );
+                teapot.traverse( function( child ) {
+
+                    if ( child instanceof THREE.Mesh ) {
+                        child.material = material;
+                    }
+                } );
+            }
+
+            function isMatching() {
+                const playerArray = teapot.matrix.toArray(tempArray)
+                teapot.matrix.decompose(decomposeTemp.position, decomposeTemp.quaternion, decomposeTemp.scale) 
+                targetMatrix.decompose(decomposeTemp2.position, decomposeTemp2.quaternion, decomposeTemp2.scale)
+
+                if (decomposeTemp.position.distanceToSquared(decomposeTemp2.position) > 1.5 * 1.5) {
+                    console.log("FAIL BECAUE positions too far")
+                    return false;
+                }
+
+                if (decomposeTemp.scale.distanceToSquared(decomposeTemp2.scale) > 0.15 * 0.15) {
+                    console.log("FAIL BECAUE scales too far")
+                    return false;
+                }
+
+                if (decomposeTemp.quaternion.angleTo(decomposeTemp2.quaternion) * 180 / Math.PI > 3) {
+                     console.log("FAIL BECAUE angles too far")
+                     return false;
+                }
+                return true;
+            }
+
+            function toStringMatrix(arr) {
+                return arr[0] + " " + arr[4] + " " + arr[8] + " " + arr[12] + "\n" + 
+                    arr[1] + " " + arr[5] + " " + arr[9] + " " + arr[13] + "\n" +
+                    arr[2] + " " + arr[6] + " " + arr[10] + " " + arr[14] + "\n" +
+                    arr[3] + " " + arr[7] + " " + arr[11] + " " + arr[15];
+            }
+
+            function loadModel() {
+
+                const mtlLoader = new MTLLoader()
+                mtlLoader.load(
+                    'teapot.mtl',
+                    (materials) => {
+                        materials.preload();
+                        const loader = new OBJLoader();
+                        loader.setMaterials(materials);
+
+                        loader.load(
+                            // resource URL
+                            "teapot.obj",
+
+                            // onLoad callback
+                            // Here the loaded data is assumed to be an object
+                            function ( obj ) {
+                                // Add the loaded object to the scene
+                                 const material = new THREE.MeshBasicMaterial( { color: 0x808080 } );
+                                material.opacity = 0.25;
+                                material.transparent = true;
+                                obj.position.y -= 40;
+                                const scale = 25;
+                                obj.scale.x = scale;
+                                obj.scale.y = scale;
+                                obj.scale.z = scale;
+                                obj.rotation.y = -90 * Math.PI / 180
+                                teapot = new THREE.Object3D();
+                                teapot.add(obj)
+                                teapot.matrixAutoUpdate = false;
+                                setTeapotColor(TEAPOT_DEFAULT_COLOR);
+
+                                teapotShadow = teapot.clone();
+                              //  teapotShadow.matrixAutoUpdate = false;
+                                //teapotShadow.position.x = 25;
+                                //teapotShadow.position.y = 125;
+                                console.log("teapotShadow.matrix before = " + JSON.stringify(teapotShadow.matrix))
+                                teapotShadow.matrix.copy(targetMatrix)
+
+                                console.log("teapotShadow.matrix after " + JSON.stringify(teapotShadow.matrix))
+                                
+                               // teapotShadow.updateMatrix();
+                                console.log("asd " + JSON.stringify(teapotShadow.position) + " " + JSON.stringify(teapotShadow.scale))
+                                teapotShadow.traverse( function( child ) {
+
+                                    if ( child instanceof THREE.Mesh ) {
+                                        child.material = material;
+                                    }
+                                } );
+
+
+                                teapotIndividualTransform = teapot.clone();
+                                teapotIndividualTransform.name = "teapotIndividualTransform"
+
+                                scene.add(teapotShadow);
+
+                                scene.add( teapot );
+                            },
+
+                            // onProgress callback
+                            function ( xhr ) {
+                                console.log( (xhr.loaded / xhr.total * 100) + '% loaded' );
+                            },
+
+                            // onError callback
+                            function ( err ) {
+                                console.error( 'An error happened ' + err );
+                            }
+                        );
+                    }
+                )
+            }
+
+            animate();
+        </script>
+        <script>
+            document.addEventListener('DOMContentLoaded', (event) => {
+              var currentlyDraggedControlIndex;
+              var selectedTransform;
+              var isDraggingItem;
+
+                document.addEventListener('set_used_transformations', (e) => { 
+                    console.log("set_used_transformations detected " + JSON.stringify(e.detail)) 
+                    var hint = "";
+                    for (var i = 0; i < e.detail.hints.length; i++) {
+                        const el = e.detail.hints[i];
+                        hint += `Step ${i+1}: ${el.transformType} on the ${el.transformAxis} axis by ${el.transformValue.toFixed(2)} <br>`
+                    }
+                    document.getElementById('hint-text').innerHTML = hint;
+                    e.detail.usedTransformations.forEach((transformType) => {
+                        var remaining = document.getElementById("remaining");
+                        const div = document.createElement('div');
+                        div.innerHTML = `<div draggable="true" class="box ${transformType}" data-transform-type="${transformType}" />`
+                        registerItemListeners(div.firstChild)
+                        remaining.appendChild(div.firstChild)
+                    })
+                }, false);
+                
+                document.addEventListener('new_transformation_value', (e) => { 
+                    console.log("new_transformation_value detected " + JSON.stringify(e.detail)) 
+                    var controls = document.getElementById("controls");
+                    controls.children[e.detail.index].querySelector('.transformValue').innerHTML = `value: ${e.detail.newValue}`;
+                }, false);
+
+              startLevel();
+              const togglePreviewEvent = new CustomEvent('toggle_preview', { detail: {enable: document.getElementById('enablePreview').checked }});
+              document.dispatchEvent(togglePreviewEvent);
+
+              document.getElementById('difficulty').addEventListener('change', function() {
+                    startLevel();
+              });
+
+              document.getElementById('enablePreview').addEventListener('change', function() {
+                const event = new CustomEvent('toggle_preview', { detail: {enable: document.getElementById('enablePreview').checked }});
+                document.dispatchEvent(event);
+              })
+
+              document.getElementById('new-level-button').addEventListener('click', function() {
+                    startLevel();
+              });
+
+
+              document.getElementById('reset-button').addEventListener('click', function() {
+                    resetLevel();
+              });
+
+              function resetLevel() {
+                clearFields();
+                const event = new CustomEvent('reset_level');
+                document.dispatchEvent(event);
+              }
+
+              function startLevel() {
+                clearFields();
+                const difficulty = document.getElementById('difficulty').value;
+                const event = new CustomEvent('start_level', { detail: {difficulty: difficulty }});
+                document.dispatchEvent(event);
+              }
+
+              function clearFields() {
+                selectedTransform = null;
+                currentlyDraggedControlIndex = -1;
+                isDraggingItem = false;
+                const remaining = document.getElementById("remaining");
+                remaining.innerHTML = '';
+                const controls = document.getElementById("controls");
+                if (controls.children.length > 1) {
+                    for (var i = controls.children.length - 2; i >= 0; i--) {
+                        controls.removeChild(controls.children[i]);
+                    }
+                }
+              }
+
+
+
+              function handleDragStart(e) {
+                console.log("handleDragStart")
+                this.style.opacity = '0.4';
+
+                var srcParent = e.currentTarget.parentNode;
+
+                e.dataTransfer.effectAllowed = 'move';
+
+                console.log("this index = " + getChildIndex(srcParent, this) + " " + JSON.stringify(this))
+                console.log("is remaining = " +  srcParent.id == "remaining")
+                const isRemaining = srcParent.id == "remaining";
+                const index = getChildIndex(srcParent, this);
+                e.dataTransfer.setData("index", index);
+                e.dataTransfer.setData("parentId", isRemaining ? "remaining" : "controls");
+                if (isRemaining) {
+                    e.dataTransfer.setData("transformType", e.currentTarget.dataset.transformType);
+                } else {
+                    currentlyDraggedControlIndex = index;
+                }
+                isDraggingItem = true;
+              }
+
+              function handleDragEnd(e) {
+                console.log("handleDragEnd")
+                this.style.opacity = '1';
+                removePreviewIfExists();
+                currentlyDraggedControlIndex = -1;
+              }
+
+              function handleDragOver(e) {
+                console.log("handleDragOver " + e.currentTarget.classList)
+                if (!isDraggingItem) {
+                    return true;
+                }
+                if (e.currentTarget.parentNode.id != "controls") {
+                    e.dataTransfer.dropEffect = 'none'
+                } 
+                else if (!e.currentTarget.classList.contains("preview")) {
+                    const srcParent = document.getElementById("controls");
+                    let existingPreview = srcParent.querySelector('.preview');
+                    if (existingPreview) {
+                        srcParent.removeChild(existingPreview);
+                    } else {
+                        var div = document.createElement('div');
+                        div.innerHTML = "<div draggable=\"true\" class=\"preview\"></div>".trim();
+                        existingPreview = div.firstChild;
+                    }
+
+                    const targetIndex = getChildIndex(srcParent, e.currentTarget);
+                    const srcIndex = currentlyDraggedControlIndex;
+                    console.log("targetIndex = " + targetIndex + " srcIndex = " + currentlyDraggedControlIndex)
+                    // Don't show preview if we're dragging over the original element
+                    if (currentlyDraggedControlIndex == -1 || (targetIndex != currentlyDraggedControlIndex && targetIndex - 1 != currentlyDraggedControlIndex)) {
+                        existingPreview.addEventListener('dragover', handleDragOver);
+                        existingPreview.addEventListener('dragenter', handleDragEnter);
+                        existingPreview.addEventListener('dragleave', handleDragLeave);
+                        existingPreview.addEventListener('dragend', handleDragEnd);
+                        existingPreview.addEventListener('drop', handleDrop);
+                        srcParent.insertBefore(existingPreview, e.currentTarget);
+                    }
+                }
+                e.preventDefault();
+                return false;
+              }
+
+              function handleDragEnter(e) {
+                console.log("handleDragEnter")
+                if (e.currentTarget.parentNode.id != "controls") {
+                    console.log("handle drag enter")
+                    e.preventDefault();
+                }
+              }
+
+              function handleDragLeave(e) {
+                console.log("handleDragLeave")
+              }
+
+              function handleDrop(ev) {
+                console.log("handleDrop")
+                ev.preventDefault();
+
+                if (ev.dataTransfer.getData("parentId") != "remaining") {
+                    const srcParent = document.getElementById("controls");                
+                    
+                    var newIndex = parseInt(ev.dataTransfer.getData("index"));
+                    const preview = document.querySelector('.preview');
+                    const previewIndex = getChildIndex(srcParent, preview);
+                    var oldIndex = previewIndex;
+                    var reportedOldIndex = oldIndex;
+                    var reportedNewIndex = newIndex;
+                    
+                    if (previewIndex < newIndex) {
+                        newIndex++;
+                    }
+
+                    if (previewIndex > newIndex) {
+                        reportedOldIndex--;
+                    }
+                    
+
+                    const event = new CustomEvent('move_item', { detail: {oldIndex: reportedNewIndex, newIndex: reportedOldIndex }});
+                    document.dispatchEvent(event);
+                    console.log("insert before oldIndex=" + oldIndex + " newIndex="+newIndex)
+
+                    srcParent.insertBefore(srcParent.children[newIndex], srcParent.children[oldIndex])
+                } else if (ev.target.parentNode.id == "controls") {
+                    const srcParent = document.getElementById("controls");                
+                   // const oldIndex = parseInt(getChildIndex(srcParent, ev.target)); // there used to be a -1 here...
+                   const preview = document.querySelector('.preview');
+                    const oldIndex = getChildIndex(srcParent, preview);
+                    console.log("dropping oldIndex = " + oldIndex)
+
+                    var div = document.createElement('div');
+                    const transformType = ev.dataTransfer.getData("transformType");
+                    if (transformType == "rotate") {
+                        div.innerHTML = `<div draggable="true" class="box" dataset-transform-type="${transformType}">${transformType}<br><span class="transformValue">value: 0°</span></div>`.trim();
+                    } else {
+                        const timestamp = Date.now();
+                        div.innerHTML = `<div draggable="true" class="box" dataset-transform-type="${transformType}">${transformType}<br>
+                        <input type="radio" id="x${timestamp}" name="axis${timestamp}" value="x" checked>
+                        <label for="x${timestamp}">X</label><br>
+                        <input type="radio" id="y${timestamp}" name="axis${timestamp}" value="y">
+                        <label for="y${timestamp}">Y</label><br>
+                        <span class="transformValue">value: 0</span>
+                        </div>`.trim();
+                    }
+                    const clone = div.firstChild;
+
+
+                    registerItemListeners(clone)
+                    const remainingIndex = ev.dataTransfer.getData("index");
+                    const event = new CustomEvent('insert_item', { detail: {index: oldIndex, transformType: transformType }});
+                    document.dispatchEvent(event);
+                    srcParent.insertBefore(clone, srcParent.children[oldIndex]);
+
+                    
+                    if (transformType != "rotate") {
+                        const radioButtons = clone.getElementsByTagName("input")
+                        for (var i = 0; i < radioButtons.length; i++) {
+                            radioButtons[i].addEventListener('change', onCheckboxChange);   
+                        }
+                    }
+
+                    const remainingContainer = document.getElementById("remaining");
+                    remainingContainer.removeChild(remainingContainer.children[remainingIndex]);
+
+                    selectTransform(clone);
+                    selectAxis(clone);
+                }
+            }
+
+            function onCheckboxChange(ev) {
+                console.log("checkbox changed")
+                selectAxis(ev.target.parentNode);
+            }
+
+            function handleClick(ev) {
+                if (ev.target.parentNode.id != "controls") {
+                    return;
+                }
+                selectTransform(ev.target)
+            }
+
+            function selectTransform(element) {
+                const srcParent = document.getElementById("controls"); 
+                selectedTransform = getChildIndex(srcParent, element);
+                let items = document.querySelectorAll('.box.selected');
+                items.forEach(function(el) { el.classList.remove('selected') });
+                element.classList.add('selected')
+
+                const event = new CustomEvent('select_item', { detail: {index: selectedTransform }});
+                document.dispatchEvent(event);
+            }
+
+            function selectAxis(element) {
+                const srcParent = document.getElementById("controls");
+                const radioButtons = element.getElementsByTagName("input")
+                var axis;
+                for (var i = 0; i < radioButtons.length; i++) {
+                    if (radioButtons[i].checked) {
+                        axis = radioButtons[i].value;
+                        break;
+                    }
+                }
+                if (axis) {
+                    const index = getChildIndex(srcParent, element);
+                    const event = new CustomEvent('select_axis', { detail: {index: index, axis: axis }});
+                    document.dispatchEvent(event);
+                }
+            }
+
+            function removePreviewIfExists() {
+                const controlsParent = document.getElementById("controls");
+                let existingPreview = controlsParent.querySelector('.preview');
+                if (existingPreview) {
+                    controlsParent.removeChild(existingPreview);
+                }
+            }
+
+
+                const inv = document.getElementById("inv");
+                //inv.addEventListener('dragstart', handleDragStart);
+                inv.addEventListener('dragover', handleDragOver);
+                inv.addEventListener('dragenter', handleDragEnter);
+                inv.addEventListener('dragleave', handleDragLeave);
+                inv.addEventListener('dragend', handleDragEnd);
+                inv.addEventListener('drop', handleDrop);
+
+                    let items = document.querySelectorAll('.draggable .box');
+                    items.forEach(registerItemListeners);
+                  function registerItemListeners(item) {
+                    item.addEventListener('dragstart', handleDragStart);
+                    item.addEventListener('dragover', handleDragOver);
+                    item.addEventListener('dragenter', handleDragEnter);
+                    item.addEventListener('dragleave', handleDragLeave);
+                    item.addEventListener('dragend', handleDragEnd);
+                    item.addEventListener('drop', handleDrop);
+                    item.addEventListener('click', handleClick)
+                }
+            }, { once: true });
+
+
+
+            function getChildIndex(parent, child) {
+                var children = parent.children;
+                var count = children.length;
+                var child_index = -1;
+                for (var i = 0; i < count; ++i) {
+                  if (child === children[i]) {
+                    child_index = i;
+                    break;
+                  }
+                }
+                return child_index;
+            }
+        </script>
+    </body>
+</html>
