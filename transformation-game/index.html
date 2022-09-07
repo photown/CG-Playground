@@ -276,39 +276,7 @@
 
             document.addEventListener('select_item', (e) => { 
                 console.log("select_item detected " + JSON.stringify(e.detail)) 
-                transformIndex = e.detail.index;
-                var transform = transformations[e.detail.index];
-                switch (transform.transformType) {
-                    case "translate":
-                        transformType = TRANSFORM_TYPE_TRANSLATE;
-                        if (transform.transformAxis == "x") {
-                            transformAxis = TRANSFORM_AXIS_X;
-                        } else if (transform.transformAxis == "y") {
-                            transformAxis = TRANSFORM_AXIS_Y;
-                        } else {
-                            transformAxis = -1;
-                        }
-                        break;
-                    case "rotate":
-                        transformType = TRANSFORM_TYPE_ROTATE;
-                        transformAxis = TRANSFORM_AXIS_Z;
-                        break;
-                    case "scale":
-                        transformType = TRANSFORM_TYPE_SCALE;
-                        if (transform.transformAxis == "x") {
-                            transformAxis = TRANSFORM_AXIS_X;
-                        } else if (transform.transformAxis == "y") {
-                            transformAxis = TRANSFORM_AXIS_Y;
-                        } else {
-                            transformAxis = -1;
-                        }
-                        break;
-                }
-                if (!scene.getObjectByName("teapotIndividualTransform")
-                    && enablePreview) {
-                    scene.add(teapotIndividualTransform)
-                }
-                updateTransformations();
+                selectItem(e.detail.index)
                 console.log("transformations array = " + JSON.stringify(transformations))
             }, false);
 
@@ -354,6 +322,66 @@
                     }
                 }
             }, false);
+
+            document.addEventListener('remove_item', (e) => { 
+                console.log("remove_item detected " + JSON.stringify(e.detail)) 
+                transformations.splice(e.detail.index, 1)
+                if (transformIndex > -1) {
+                    if (transformIndex == e.detail.index) {
+                        if (transformIndex > 0) {
+                            selectItem(transformIndex - 1);
+                        } else {
+                            transformIndex = -1;
+                            transformAxis = -1;
+                            transformType = TRANSFORM_TYPE_NONE;
+                        }
+                    } else if (transformIndex > e.detail.index) {
+                        selectItem(transformIndex - 1);
+                    }
+                }
+                updateTransformations();
+                console.log("transformations array = " + JSON.stringify(transformations))
+                if (transformIndex != -1) {
+                    const selectItemEvent = new CustomEvent('select_item_client', { detail: {index: transformIndex }});
+                    document.dispatchEvent(selectItemEvent);
+                }
+            }, false);
+
+            function selectItem(index) {
+                transformIndex = index;
+                var transform = transformations[index];
+                switch (transform.transformType) {
+                    case "translate":
+                        transformType = TRANSFORM_TYPE_TRANSLATE;
+                        if (transform.transformAxis == "x") {
+                            transformAxis = TRANSFORM_AXIS_X;
+                        } else if (transform.transformAxis == "y") {
+                            transformAxis = TRANSFORM_AXIS_Y;
+                        } else {
+                            transformAxis = -1;
+                        }
+                        break;
+                    case "rotate":
+                        transformType = TRANSFORM_TYPE_ROTATE;
+                        transformAxis = TRANSFORM_AXIS_Z;
+                        break;
+                    case "scale":
+                        transformType = TRANSFORM_TYPE_SCALE;
+                        if (transform.transformAxis == "x") {
+                            transformAxis = TRANSFORM_AXIS_X;
+                        } else if (transform.transformAxis == "y") {
+                            transformAxis = TRANSFORM_AXIS_Y;
+                        } else {
+                            transformAxis = -1;
+                        }
+                        break;
+                }
+                if (!scene.getObjectByName("teapotIndividualTransform")
+                    && enablePreview) {
+                    scene.add(teapotIndividualTransform)
+                }
+                updateTransformations();
+            }
 
             function startLevel(difficulty) {
                  renderer.domElement.onmousedown = function(event){
@@ -401,8 +429,11 @@
                 cachedUsedTransformations = result.usedTransformations;
                 cachedHints = result.hints;
                 console.log("hint = " + JSON.stringify(result.hints))
-                const event = new CustomEvent('set_used_transformations', { detail: {usedTransformations: cachedUsedTransformations, hints: cachedHints }});
-                document.dispatchEvent(event);
+                const setUsedTransformationsEvent = new CustomEvent('set_used_transformations', { detail: {usedTransformations: cachedUsedTransformations }});
+                document.dispatchEvent(setUsedTransformationsEvent);
+                const setHintEvent = new CustomEvent('set_hint', { detail: {hints: cachedHints }});
+                document.dispatchEvent(setHintEvent);
+                
             }
 
             function resetLevel() {
@@ -425,7 +456,7 @@
                     updateTransformations();
                 }
 
-                const event = new CustomEvent('set_used_transformations', { detail: {usedTransformations: cachedUsedTransformations, hints: cachedHints }});
+                const event = new CustomEvent('set_used_transformations', { detail: {usedTransformations: cachedUsedTransformations }});
                 document.dispatchEvent(event);
             }
 
@@ -676,6 +707,8 @@
                     teapotIndividualTransform.matrix.copy(transformations[transformIndex].matrix);
                     teapotIndividualTransform.matrix.decompose(decomposeTemp.position, decomposeTemp.quaternion, decomposeTemp.scale)
                     teapotIndividualTransform.matrix.setPosition(decomposeTemp.position.x, decomposeTemp.position.y, -100);
+                } else {
+                    scene.remove(teapotIndividualTransform)
                 }
 
                 if (isMatching()) {
@@ -828,19 +861,19 @@
 
                 document.addEventListener('set_used_transformations', (e) => { 
                     console.log("set_used_transformations detected " + JSON.stringify(e.detail)) 
+                    e.detail.usedTransformations.forEach((transformType) => {
+                        addRemainingItem(transformType)
+                    })
+                }, false);
+
+                document.addEventListener('set_hint', (e) => { 
+                    console.log("set_hint detected " + JSON.stringify(e.detail)) 
                     var hint = "";
                     for (var i = 0; i < e.detail.hints.length; i++) {
                         const el = e.detail.hints[i];
                         hint += `Step ${i+1}: ${el.transformType} on the ${el.transformAxis} axis by ${el.transformValue.toFixed(2)} <br>`
                     }
                     document.getElementById('hint-text').innerHTML = hint;
-                    e.detail.usedTransformations.forEach((transformType) => {
-                        var remaining = document.getElementById("remaining");
-                        const div = document.createElement('div');
-                        div.innerHTML = `<div draggable="true" class="box ${transformType}" data-transform-type="${transformType}" />`
-                        registerItemListeners(div.firstChild)
-                        remaining.appendChild(div.firstChild)
-                    })
                 }, false);
                 
                 document.addEventListener('new_transformation_value', (e) => { 
@@ -848,6 +881,13 @@
                     var controls = document.getElementById("controls");
                     controls.children[e.detail.index].querySelector('.transformValue').innerHTML = `value: ${e.detail.newValue}`;
                 }, false);
+
+
+            document.addEventListener('select_item_client', (e) => { 
+                console.log("select_item_client detected " + JSON.stringify(e.detail)) 
+                const controls = document.getElementById("controls");
+                selectTransform(controls.children[e.detail.index])
+            }, false);
 
               startLevel();
               const togglePreviewEvent = new CustomEvent('toggle_preview', { detail: {enable: document.getElementById('enablePreview').checked }});
@@ -898,6 +938,13 @@
                 }
               }
 
+              function addRemainingItem(transformType) {
+                var remaining = document.getElementById("remaining");
+                const div = document.createElement('div');
+                div.innerHTML = `<div draggable="true" class="box ${transformType}" data-transform-type="${transformType}" />`
+                registerItemListeners(div.firstChild)
+                remaining.appendChild(div.firstChild)
+            }
 
 
               function handleDragStart(e) {
@@ -1014,19 +1061,32 @@
                     var div = document.createElement('div');
                     const transformType = ev.dataTransfer.getData("transformType");
                     if (transformType == "rotate") {
-                        div.innerHTML = `<div draggable="true" class="box" dataset-transform-type="${transformType}">${transformType}<br><span class="transformValue">value: 0°</span></div>`.trim();
+                        div.innerHTML = `<div draggable="true" class="box" data-transform-type="${transformType}">${transformType}
+                        <br><span class="transformValue">value: 0°</span>
+                        <br><button>remove</button>
+                        </div>`.trim();
                     } else {
                         const timestamp = Date.now();
-                        div.innerHTML = `<div draggable="true" class="box" dataset-transform-type="${transformType}">${transformType}<br>
+                        div.innerHTML = `<div draggable="true" class="box" data-transform-type="${transformType}">${transformType}<br>
                         <input type="radio" id="x${timestamp}" name="axis${timestamp}" value="x" checked>
                         <label for="x${timestamp}">X</label><br>
                         <input type="radio" id="y${timestamp}" name="axis${timestamp}" value="y">
                         <label for="y${timestamp}">Y</label><br>
                         <span class="transformValue">value: 0</span>
+                        <br><button>remove</button>
                         </div>`.trim();
                     }
                     const clone = div.firstChild;
 
+                    clone.getElementsByTagName("button")[0].addEventListener('click', function(ev) {
+                        const parent = ev.target.parentNode;
+                        const index = getChildIndex(parent.parentNode, parent);
+                        parent.parentNode.removeChild(parent);
+                        const event = new CustomEvent('remove_item', { detail: {index: index }});
+                        document.dispatchEvent(event);
+                        addRemainingItem(parent.dataset.transformType);
+                        console.log("CLICKED " + index)
+                    });
 
                     registerItemListeners(clone)
                     const remainingIndex = ev.dataTransfer.getData("index");
