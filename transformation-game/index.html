@@ -703,13 +703,18 @@
                 teapot.matrix.decompose(decomposeTemp.position, decomposeTemp.quaternion, decomposeTemp.scale) 
                 targetMatrix.decompose(decomposeTemp2.position, decomposeTemp2.quaternion, decomposeTemp2.scale)
 
-                if (decomposeTemp.position.distanceToSquared(decomposeTemp2.position) > 1.5 * 1.5) {
+                console.log("------- IS MATCHING?")
+                console.log(`pos1 = ${JSON.stringify(decomposeTemp.position)}, pos2=${JSON.stringify(decomposeTemp2.position)}`)
+                console.log(`scale1 = ${JSON.stringify(decomposeTemp.scale)}, scale2=${JSON.stringify(decomposeTemp2.scale)}`)
+                console.log(`ang diff = ${decomposeTemp.quaternion.angleTo(decomposeTemp2.quaternion) * 180 / Math.PI}`)
+                if (decomposeTemp.position.distanceToSquared(decomposeTemp2.position) > 3 * 3) {
                     console.log("FAIL BECAUE positions too far")
                     return false;
                 }
-
-                if (decomposeTemp.scale.distanceToSquared(decomposeTemp2.scale) > 0.15 * 0.15) {
-                    console.log("FAIL BECAUE scales too far")
+                const scaleRatioX = decomposeTemp.scale.x / decomposeTemp2.scale.x;
+                const scaleRatioY = decomposeTemp.scale.y / decomposeTemp2.scale.y;
+                if (scaleRatioX < 0.95 || scaleRatioX > 1.05 || scaleRatioY < 0.95 || scaleRatioY > 1.05) {
+                    console.log(`FAIL BECAUE scales too far scaleRatioX=${scaleRatioX}, scaleRatioY=${scaleRatioY}`)
                     return false;
                 }
 
