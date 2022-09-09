@@ -150,7 +150,7 @@
                     </div>
                 </div>
             </div>
-            <canvas id="canvas" style="width:0px;flex-grow: 1;max-width:600px" ></canvas>
+            <canvas id="canvas" ondragstart="return false;" ondrop="return false;" style="width:0px;flex-grow: 1;max-width:600px" ></canvas>
         </div>
         <div style="padding: 15px">
             <br/><b>How to play:</b>
@@ -607,6 +607,12 @@
                 renderer.render( scene, camera );
             };
 
+            function hasPointerLock() {
+                return 'pointerLockElement' in document ||
+                    'mozPointerLockElement' in document ||
+                    'webkitPointerLockElement' in document;
+            }
+
             function onMouseDown(event) {
                 if (!teapot) {
                     return;
@@ -622,6 +628,16 @@
                 transformations[transformIndex].matrix.decompose(decomposeTemp.position, decomposeTemp.quaternion, decomposeTemp.scale);
                 startEuler.setFromQuaternion(decomposeTemp.quaternion);
                 startPosition.copy(decomposeTemp.position);
+
+
+                
+                if (hasPointerLock()) {
+                    renderer.domElement.requestPointerLock = renderer.domElement.requestPointerLock ||
+                     renderer.domElement.mozRequestPointerLock ||
+                     renderer.domElement.webkitRequestPointerLock;
+                    // Ask the browser to lock the pointer
+                    renderer.domElement.requestPointerLock();
+                }
                  
 
                 console.log("onmousedown " + event.clientX + " " + event.clientY)
@@ -635,27 +651,50 @@
                 console.log("onmouseup " + event.clientX + " " + event.clientY)   
                 document.body.onmousemove = null;
                 document.body.onmouseup = null;
+                if (hasPointerLock()) {
+                    document.exitPointerLock = document.exitPointerLock ||
+                       document.mozExitPointerLock ||
+                       document.webkitExitPointerLock;
+                    document.exitPointerLock();
+                }
             }
 
             function onMouseMove(event) {
-                console.log("onmousemove " + event.clientX + " " + event.clientY)     
+                console.log("onmousemove " + event.clientX + " " + event.clientY)
+                var movementX = event.movementX ||
+                      event.mozMovementX          ||
+                      event.webkitMovementX       ||
+                      (event.clientX - previousPos.x),
+                  movementY = -event.movementY ||
+                      -event.mozMovementY      ||
+                      -event.webkitMovementY   ||
+                      (previousPos.y - event.clientY);
                 if (transformType == TRANSFORM_TYPE_TRANSLATE) {
                     if (transformAxis == TRANSFORM_AXIS_X) {
-                        tempMatrix.makeTranslation(startPosition.x + (event.clientX - startPos.x), 0, 0)
+                        startPosition.set(startPosition.x + movementX, startPosition.y, 0);
+                        tempMatrix.makeTranslation(startPosition.x, 0, 0)
                     } else if (transformAxis == TRANSFORM_AXIS_Y) {
-                        tempMatrix.makeTranslation(0, startPosition.y - (event.clientY - startPos.y), 0)
+                        startPosition.set(startPosition.x, startPosition.y + movementY, 0);
+                        tempMatrix.makeTranslation(0, startPosition.y, 0)
                     }
                 } else if (transformType == TRANSFORM_TYPE_ROTATE) {
                     if (transformAxis == TRANSFORM_AXIS_Z) {
-                        tempMatrix.makeRotationZ(startEuler.z + (event.clientX - startPos.x) * Math.PI / 180);
+                        startEuler.z += movementX * Math.PI / 180;
+                        if (startEuler.z < -Math.PI) {
+                            startEuler.z += 2 * Math.PI;
+                        }
+                        if (startEuler.z > Math.PI) {
+                            startEuler.z -= 2 * Math.PI;
+                        }
+                        tempMatrix.makeRotationZ(startEuler.z);
                     }
                 }  else if (transformType == TRANSFORM_TYPE_SCALE) {
                     if (transformAxis == TRANSFORM_AXIS_X) {
-                        var newScale = (startScale.x + (event.clientX - startPos.x) / 200);
-                        tempMatrix.makeScale(newScale, 1, 1);
+                        startScale.x += movementX / 200;
+                        tempMatrix.makeScale(startScale.x, 1, 1);
                     } else if (transformAxis == TRANSFORM_AXIS_Y) {
-                        var newScale = (startScale.y + (startPos.y - event.clientY) / 200);
-                        tempMatrix.makeScale(1, newScale, 1);
+                        startScale.y += movementY / 200;
+                        tempMatrix.makeScale(1, startScale.y, 1);
                     }
                 }
 
